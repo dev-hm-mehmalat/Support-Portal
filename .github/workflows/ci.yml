@@ -1,42 +1,37 @@
 name: Run Tests
 
-on:
-  push:
-    branches:
-      - '**'       # alle Branches
-  pull_request:
-    branches:
-      - '**'       # alle Branches
+on: [push, pull_request]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup PHP 8.4
+      - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.4
 
-      - name: Install Composer Dependencies
+      - name: Install dependencies
         run: composer install --no-progress --no-suggest --prefer-dist
 
-      - name: Copy .env file
+      - name: Copy .env
         run: cp .env.example .env
 
-      - name: Generate Application Key
+      - name: Generate app key
         run: php artisan key:generate
 
-      - name: Run Tests with Pest
-        run: ./vendor/bin/pest --colors=always --fail-on-empty
+      - name: Install Node.js and dependencies
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-      # Optional: Artefakte speichern, Logs etc.
-      # - name: Upload Test Reports
-      #   if: always()
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: test-results
-      #     path: storage/logs/ # je nach Konfiguration
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build assets with Vite
+        run: npm run build
+
+      - name: Run tests with Pest
+        run: ./vendor/bin/pest
