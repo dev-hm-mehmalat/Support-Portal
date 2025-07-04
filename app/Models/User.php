@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles; // Trait für Rollen und Berechtigungen
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class User extends Authenticatable
 {
-    use Notifiable, HasRoles; // Traits einbinden
+    use HasFactory, Notifiable, HasRoles; // Traits einbinden
 
     /**
      * Die Attribute, die massenweise befüllt werden dürfen.
