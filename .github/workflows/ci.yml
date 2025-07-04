@@ -1,26 +1,42 @@
 name: Run Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - '**'       # alle Branches
+  pull_request:
+    branches:
+      - '**'       # alle Branches
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Setup PHP
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.4
 
-      - name: Install dependencies
+      - name: Install Composer Dependencies
         run: composer install --no-progress --no-suggest --prefer-dist
 
-      - name: Copy .env
+      - name: Copy .env file
         run: cp .env.example .env
 
-      - name: Generate app key
+      - name: Generate Application Key
         run: php artisan key:generate
 
-      - name: Run tests with Pest
-        run: ./vendor/bin/pest
+      - name: Run Tests with Pest
+        run: ./vendor/bin/pest --colors=always --fail-on-empty
+
+      # Optional: Artefakte speichern, Logs etc.
+      # - name: Upload Test Reports
+      #   if: always()
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: test-results
+      #     path: storage/logs/ # je nach Konfiguration
