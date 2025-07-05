@@ -1,12 +1,19 @@
 name: Run Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+      - feature/ticketsystem
+  pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -14,12 +21,12 @@ jobs:
           php-version: 8.4
 
       - name: Install PHP dependencies
-        run: composer install --no-progress --no-suggest --prefer-dist
+        run: composer install --no-progress --no-suggest --prefer-dist --no-interaction
 
       - name: Copy .env file
         run: cp .env.example .env
 
-      - name: Generate app key
+      - name: Generate application key
         run: php artisan key:generate
 
       - name: Setup Node.js
@@ -34,4 +41,4 @@ jobs:
         run: npm run build
 
       - name: Run tests with Pest
-        run: ./vendor/bin/pest
+        run: ./vendor/bin/pest --colors
