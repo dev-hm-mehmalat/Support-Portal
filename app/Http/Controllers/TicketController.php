@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User; 
 use App\Notifications\TicketStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+
 
 class TicketController extends Controller
 {
     public function __construct()
     {
-        // Alle Routen hier brauchen Authentifizierung
+        // Alle Methoden erfordern Login
         $this->middleware('auth');
     }
 
@@ -83,10 +84,10 @@ class TicketController extends Controller
         return view('tickets.show', compact('ticket'));
     }
 
-    // Bearbeiten-Formular anzeigen
+    // Bearbeiten-Formular anzeigen (nur Support/Admin)
     public function edit($id)
     {
-        // Nur Support und Admin dürfen bearbeiten
+        // --- Rollen-Prüfung ---
         if (!Auth::user()->hasAnyRole(['support', 'admin'])) {
             abort(403, 'Keine Berechtigung!');
         }
@@ -101,10 +102,10 @@ class TicketController extends Controller
         return view('tickets.edit', compact('ticket'));
     }
 
-    // Änderungen speichern und Notification senden
+    // Ticket aktualisieren (nur Support/Admin)
     public function update(Request $request, $id)
     {
-        // Rechteprüfung: Nur Support und Admin
+        // --- Rollen-Prüfung ---
         if (!Auth::user()->hasAnyRole(['support', 'admin'])) {
             abort(403, 'Keine Berechtigung!');
         }
@@ -148,7 +149,6 @@ class TicketController extends Controller
         Cache::put('tickets', $tickets);
 
         // Notification senden an Ersteller
-        // Hole Ersteller User anhand user_id (hier Beispiel mit User Model)
         $ticketOwner = \App\Models\User::find($tickets[$ticketIndex]['user_id']);
         if ($ticketOwner) {
             $ticketOwner->notify(new TicketStatusChanged($tickets[$ticketIndex]));
@@ -157,10 +157,10 @@ class TicketController extends Controller
         return redirect()->route('tickets.index')->with('success', 'Ticket aktualisiert!');
     }
 
-    // Ticket löschen
+    // Ticket löschen (nur Admin)
     public function destroy($id)
     {
-        // Nur Admin darf löschen
+        // --- Rollen-Prüfung ---
         if (!Auth::user()->hasRole('admin')) {
             abort(403, 'Nur Admin darf löschen!');
         }

@@ -4,13 +4,19 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles; // Trait für Rollen und Berechtigungen
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Laravel\Sanctum\HasApiTokens; // Wichtig für API-Token
+use Spatie\Permission\Traits\HasRoles;
+use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * User Model mit Rollen, Sanctum-API, Factory und Notification
+ *
+ * @mixin \Spatie\Permission\Traits\HasRoles
+ * // ^-- DIESER HINWEIS LÖST DAS PROBLEM FÜR DEINEN EDITOR
+ */
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles; // HasApiTokens hier hinzufügen
+    use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
      * Die Attribute, die massenweise befüllt werden dürfen.
