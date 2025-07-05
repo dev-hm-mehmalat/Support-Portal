@@ -6,10 +6,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles; // Trait für Rollen und Berechtigungen
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Laravel\Sanctum\HasApiTokens; // Wichtig für API-Token
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles; // Traits einbinden
+    use HasApiTokens, HasFactory, Notifiable, HasRoles; // HasApiTokens hier hinzufügen
 
     /**
      * Die Attribute, die massenweise befüllt werden dürfen.
