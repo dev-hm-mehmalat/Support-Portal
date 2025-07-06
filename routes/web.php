@@ -1,8 +1,10 @@
 <?php
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
+
+
 
 // Startseite
 Route::get('/', function () {
