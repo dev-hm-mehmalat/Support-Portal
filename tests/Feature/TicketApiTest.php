@@ -19,18 +19,21 @@ class TicketApiTest extends TestCase
         $this->user = User::factory()->create();
     }
 
-    #[Test]
+    /** @test */
     public function user_can_list_tickets(): void
     {
-        Sanctum::actingAs($this->user);  // Auth via Sanctum setzen
+        Sanctum::actingAs($this->user);
+
         $response = $this->getJson('/api/tickets');
-        $response->assertStatus(200);
+        $response->assertStatus(200)
+                 ->assertJsonIsArray(); // Prüft, ob ein Array zurückkommt
     }
 
-    #[Test]
+    /** @test */
     public function user_can_create_ticket(): void
     {
         Sanctum::actingAs($this->user);
+
         $data = [
             'title' => 'Test Ticket',
             'description' => 'Test Beschreibung',
@@ -38,24 +41,28 @@ class TicketApiTest extends TestCase
             'priority' => 'medium',
         ];
         $response = $this->postJson('/api/tickets', $data);
-        $response->assertStatus(201)
-                 ->assertJsonFragment(['title' => 'Test Ticket']);
-    }
 
+        $response->assertStatus(201)
+                 ->assertJsonFragment(['title' => 'Test Ticket'])
+                 ->assertJsonStructure(['id', 'title', 'description', 'category', 'priority', 'status', 'user_id']);
+    }
 
     /** @test */
     public function user_can_show_ticket()
     {
         Sanctum::actingAs($this->user);
 
-        // Erst Ticket erstellen
+        // Ticket erstellen und als JSON zurückholen
         $create = $this->postJson('/api/tickets', [
             'title' => 'Show Ticket',
             'description' => 'Beschreibung',
             'category' => 'Hardware',
             'priority' => 'high',
         ]);
+        $create->assertStatus(201);
+
         $ticket = $create->json();
+        $this->assertArrayHasKey('id', $ticket);
 
         $response = $this->getJson("/api/tickets/{$ticket['id']}");
         $response->assertStatus(200)
@@ -73,13 +80,15 @@ class TicketApiTest extends TestCase
             'category' => 'Dev',
             'priority' => 'low',
         ]);
+        $create->assertStatus(201);
+
         $ticket = $create->json();
+        $this->assertArrayHasKey('id', $ticket);
 
         $update = $this->putJson("/api/tickets/{$ticket['id']}", [
             'title' => 'Updated Title',
             'priority' => 'critical',
         ]);
-
         $update->assertStatus(200)
                ->assertJsonFragment(['title' => 'Updated Title', 'priority' => 'critical']);
     }
@@ -95,12 +104,15 @@ class TicketApiTest extends TestCase
             'category' => 'Test',
             'priority' => 'medium',
         ]);
+        $create->assertStatus(201);
+
         $ticket = $create->json();
+        $this->assertArrayHasKey('id', $ticket);
 
         $del = $this->deleteJson("/api/tickets/{$ticket['id']}");
         $del->assertStatus(204);
 
-        // Prüfe, dass nicht mehr gefunden wird
+        // Nach Löschung sollte 404 kommen
         $this->getJson("/api/tickets/{$ticket['id']}")->assertStatus(404);
     }
 }
