@@ -25,28 +25,28 @@ class TicketApiController extends Controller
     }
 
     // 2. Ticket erstellen (JSON)
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'required|string',
-            'category'    => 'nullable|string|max:50',
-            'priority'    => 'required|in:low,medium,high,critical',
-            'reported_at' => 'nullable|date',
-        ]);
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'title'       => 'required|string|max:255',
+        'description' => 'required|string',
+        'category'    => 'nullable|string|max:50',
+        'priority'    => 'required|in:low,medium,high,critical',
+    ]);
 
-        $ticket = Ticket::create([
-            'title'       => $validated['title'],
-            'description' => $validated['description'],
-            'category'    => $validated['category'] ?? null,
-            'priority'    => $validated['priority'],
-            'reported_at' => $validated['reported_at'] ?? null,
-            'user_id'     => Auth::id(),
-            'status'      => 'open',
-        ]);
+    $ticket = Ticket::create([
+        'title'       => $validated['title'],
+        'description' => $validated['description'],
+        'category'    => $validated['category'] ?? null,
+        'priority'    => $validated['priority'],
+        'user_id'     => Auth::id(),
+        'status'      => 'open',
+    ]);
 
-        return response()->json($ticket, 201); // Enthält 'id'
-    }
+    // WICHTIG: GANZES Objekt zurückgeben!
+    return response()->json($ticket, 201);
+}
+
 
     // 3. Einzelnes Ticket (JSON)
     public function show($id)
