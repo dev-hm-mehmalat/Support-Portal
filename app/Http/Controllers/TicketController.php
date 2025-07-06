@@ -32,46 +32,35 @@ class TicketController extends Controller
     {
         return view('tickets.create');
     }
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'title'       => 'required|string|max:255',
+        'description' => 'required|string',
+        'category'    => 'nullable|string|max:50',
+        'priority'    => 'required|in:low,medium,high,critical',
+        'reported_at' => 'nullable|date',
+        'attachment'  => 'nullable|file|max:5120',
+    ]);
 
-    // Ticket speichern (inkl. Validierung und Speicherung im Cache)
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'required|string',
-            'category'    => 'nullable|string|max:50',
-            'priority'    => 'required|in:low,medium,high,critical',
-            'reported_at' => 'nullable|date',
-            'attachment'  => 'nullable|file|max:5120', // max 5MB
-        ]);
-
-        $tickets = Cache::get('tickets', []);
-        $attachmentPath = null;
-
-        if ($request->hasFile('attachment')) {
-            $attachmentPath = $request->file('attachment')->store('attachments', 'public');
-        }
-
-        $id = count($tickets) ? max(array_column($tickets, 'id')) + 1 : 1;
-
-        $newTicket = [
-            'id'          => $id,
-            'title'       => $validated['title'],
-            'description' => $validated['description'],
-            'category'    => $validated['category'] ?? null,
-            'priority'    => $validated['priority'],
-            'user_id'     => Auth::id(),
-            'status'      => 'open',
-            'reported_at' => $validated['reported_at'] ?? null,
-            'attachment'  => $attachmentPath,
-            'created_at'  => now()->toDateTimeString(),
-        ];
-
-        $tickets[] = $newTicket;
-        Cache::put('tickets', $tickets);
-
-        return redirect()->route('tickets.index')->with('success', 'Ticket erfolgreich erstellt!');
+    $attachmentPath = null;
+    if ($request->hasFile('attachment')) {
+        $attachmentPath = $request->file('attachment')->store('attachments', 'public');
     }
+
+    \App\Models\Ticket::create([
+        'title'       => $validated['title'],
+        'description' => $validated['description'],
+        'category'    => $validated['category'] ?? null,
+        'priority'    => $validated['priority'],
+        'user_id'     => \Auth::id(),
+        'status'      => 'open',
+        'reported_at' => $validated['reported_at'] ?? null,
+        'attachment'  => $attachmentPath,
+    ]);
+
+    return redirect()->route('tickets.index')->with('success', 'Ticket erfolgreich erstellt!');
+}
 
     // Einzelnes Ticket anzeigen
     public function show($id)
