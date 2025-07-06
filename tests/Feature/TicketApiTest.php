@@ -95,24 +95,33 @@ class TicketApiTest extends TestCase
 
     /** @test */
     public function user_can_delete_ticket()
-    {
-        Sanctum::actingAs($this->user);
+{
+    // 1. Erstelle Admin-User und logge ein
+    $admin = User::factory()->create([
+        // Passe den Rollen-Namen an deine Implementation an!
+        'role' => 'admin'
+    ]);
+    Sanctum::actingAs($admin);
 
-        $create = $this->postJson('/api/tickets', [
-            'title' => 'Delete Me',
-            'description' => 'Wird gelöscht',
-            'category' => 'Test',
-            'priority' => 'medium',
-        ]);
-        $create->assertStatus(201);
+    // 2. Ticket erstellen
+    $create = $this->postJson('/api/tickets', [
+        'title' => 'Delete Me',
+        'description' => 'Wird gelöscht',
+        'category' => 'Test',
+        'priority' => 'medium',
+    ]);
+    $ticket = $create->json();
 
-        $ticket = $create->json();
-        $this->assertArrayHasKey('id', $ticket);
+    // 3. Ticket löschen (als Admin!)
+    $del = $this->deleteJson("/api/tickets/{$ticket['id']}");
+    $del->assertStatus(204);
 
-        $del = $this->deleteJson("/api/tickets/{$ticket['id']}");
-        $del->assertStatus(204);
+    // Prüfen, dass es gelöscht wurde
+    $this->getJson("/api/tickets/{$ticket['id']}")->assertStatus(404);
+}
 
-        // Nach Löschung sollte 404 kommen
-        $this->getJson("/api/tickets/{$ticket['id']}")->assertStatus(404);
-    }
+
+
+
+
 }
