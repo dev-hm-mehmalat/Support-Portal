@@ -6,6 +6,7 @@ use Tests\TestCase;
 use Laravel\Sanctum\Sanctum;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role; 
 
 class TicketApiTest extends TestCase
 {
@@ -94,16 +95,17 @@ class TicketApiTest extends TestCase
     }
 
     /** @test */
-    public function user_can_delete_ticket()
+ 
+
+public function user_can_delete_ticket()
 {
-    // 1. Erstelle Admin-User und logge ein
-    $admin = User::factory()->create([
-        // Passe den Rollen-Namen an deine Implementation an!
-        'role' => 'admin'
-    ]);
+    // 1. Rolle 'admin' sicherstellen und zuweisen (Spatie!)
+    Role::findOrCreate('admin');
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
     Sanctum::actingAs($admin);
 
-    // 2. Ticket erstellen
+    // 2. Ticket erstellen (als Admin)
     $create = $this->postJson('/api/tickets', [
         'title' => 'Delete Me',
         'description' => 'Wird gelöscht',
@@ -116,7 +118,7 @@ class TicketApiTest extends TestCase
     $del = $this->deleteJson("/api/tickets/{$ticket['id']}");
     $del->assertStatus(204);
 
-    // Prüfen, dass es gelöscht wurde
+    // 4. Prüfen, dass es gelöscht wurde
     $this->getJson("/api/tickets/{$ticket['id']}")->assertStatus(404);
 }
 
