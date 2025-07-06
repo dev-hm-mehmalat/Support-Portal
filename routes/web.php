@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\DashboardController;
@@ -10,9 +9,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Dashboard mit Tickets anzeigen (authentifiziert)
+// Authentifizierte Routen mit Rollen- und Berechtigungssteuerung
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Dashboard Route mit Controller
+
+    // Dashboard Route
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Profil-Routen
@@ -20,21 +20,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Tickets-Routen für Rolle "user" (eigene Tickets)
-    Route::group(['middleware' => ['role:user']], function () {
-        Route::resource('tickets', TicketController::class)
-            ->only(['create', 'store', 'index', 'show', 'edit', 'update']);
-    });
-
-    // Tickets-Routen für Rollen "support" und "admin" (alle Tickets verwalten, außer löschen)
-    Route::group(['middleware' => ['role:support|admin']], function () {
+    // Tickets: Zugriff für user, support UND admin (alle dürfen Tickets sehen/erstellen/bearbeiten, aber NUR admin darf löschen)
+    Route::group(['middleware' => ['role:user|support|admin']], function () {
         Route::resource('tickets', TicketController::class)
             ->except(['destroy']);
     });
 
-    // Admin-only Routen (z.B. Benutzerverwaltung)
+    // Nur admin darf Tickets löschen (destroy)
     Route::group(['middleware' => ['role:admin']], function () {
-        // Route::resource('users', UserController::class);
+        Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
+        // Weitere Admin-only-Routen hier...
     });
 });
 

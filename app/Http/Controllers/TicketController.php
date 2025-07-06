@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User; 
+use App\Models\Ticket;
+use App\Models\User;
 use App\Notifications\TicketStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
+class TicketController extends Controller 
 
-class TicketController extends Controller
+
 {
     public function __construct()
     {
@@ -31,16 +33,16 @@ class TicketController extends Controller
         return view('tickets.create');
     }
 
-    // Ticket speichern (inkl. Dateiupload)
+    // Ticket speichern (inkl. Validierung und Speicherung im Cache)
     public function store(Request $request)
     {
-        $request->validate([
-            'title'       => 'required|max:255',
-            'description' => 'required',
+        $validated = $request->validate([
+            'title'       => 'required|string|max:255',
+            'description' => 'required|string',
             'category'    => 'nullable|string|max:50',
             'priority'    => 'required|in:low,medium,high,critical',
             'reported_at' => 'nullable|date',
-            'attachment'  => 'nullable|file|max:5120', // max. 5MB
+            'attachment'  => 'nullable|file|max:5120', // max 5MB
         ]);
 
         $tickets = Cache::get('tickets', []);
@@ -54,13 +56,13 @@ class TicketController extends Controller
 
         $newTicket = [
             'id'          => $id,
-            'title'       => $request->title,
-            'description' => $request->description,
-            'category'    => $request->category,
-            'priority'    => $request->priority,
+            'title'       => $validated['title'],
+            'description' => $validated['description'],
+            'category'    => $validated['category'] ?? null,
+            'priority'    => $validated['priority'],
             'user_id'     => Auth::id(),
             'status'      => 'open',
-            'reported_at' => $request->reported_at,
+            'reported_at' => $validated['reported_at'] ?? null,
             'attachment'  => $attachmentPath,
             'created_at'  => now()->toDateTimeString(),
         ];
@@ -68,14 +70,14 @@ class TicketController extends Controller
         $tickets[] = $newTicket;
         Cache::put('tickets', $tickets);
 
-        return redirect()->route('tickets.index')->with('success', 'Ticket gespeichert!');
+        return redirect()->route('tickets.index')->with('success', 'Ticket erfolgreich erstellt!');
     }
 
     // Einzelnes Ticket anzeigen
     public function show($id)
     {
         $tickets = Cache::get('tickets', []);
-        $ticket = collect($tickets)->firstWhere('id', $id);
+        $ticket = collect($tickets)->firstWhere('id', (int)$id);
 
         if (!$ticket) {
             abort(404);
@@ -84,16 +86,15 @@ class TicketController extends Controller
         return view('tickets.show', compact('ticket'));
     }
 
-    // Bearbeiten-Formular anzeigen (nur Support/Admin)
+    // Formular zum Bearbeiten anzeigen (nur Support/Admin)
     public function edit($id)
     {
-        // --- Rollen-Prüfung ---
         if (!Auth::user()->hasAnyRole(['support', 'admin'])) {
             abort(403, 'Keine Berechtigung!');
         }
 
         $tickets = Cache::get('tickets', []);
-        $ticket = collect($tickets)->firstWhere('id', $id);
+        $ticket = collect($tickets)->firstWhere('id', (int)$id);
 
         if (!$ticket) {
             abort(404);
@@ -105,14 +106,13 @@ class TicketController extends Controller
     // Ticket aktualisieren (nur Support/Admin)
     public function update(Request $request, $id)
     {
-        // --- Rollen-Prüfung ---
         if (!Auth::user()->hasAnyRole(['support', 'admin'])) {
             abort(403, 'Keine Berechtigung!');
         }
 
-        $request->validate([
-            'title'       => 'required|max:255',
-            'description' => 'required',
+        $validated = $request->validate([
+            'title'       => 'required|string|max:255',
+            'description' => 'required|string',
             'category'    => 'nullable|string|max:50',
             'priority'    => 'required|in:low,medium,high,critical',
             'reported_at' => 'nullable|date',
@@ -121,13 +121,13 @@ class TicketController extends Controller
         ]);
 
         $tickets = Cache::get('tickets', []);
-        $ticketIndex = collect($tickets)->search(fn($t) => $t['id'] == $id);
+        $index = collect($tickets)->search(fn($t) => $t['id'] == (int)$id);
 
-        if ($ticketIndex === false) {
+        if ($index === false) {
             abort(404);
         }
 
-        $attachmentPath = $tickets[$ticketIndex]['attachment'] ?? null;
+        $attachmentPath = $tickets[$index]['attachment'] ?? null;
         if ($request->hasFile('attachment')) {
             if ($attachmentPath) {
                 Storage::disk('public')->delete($attachmentPath);
@@ -135,23 +135,22 @@ class TicketController extends Controller
             $attachmentPath = $request->file('attachment')->store('attachments', 'public');
         }
 
-        // Ticket aktualisieren
-        $tickets[$ticketIndex] = array_merge($tickets[$ticketIndex], [
-            'title'       => $request->title,
-            'description' => $request->description,
-            'category'    => $request->category,
-            'priority'    => $request->priority,
-            'status'      => $request->status,
-            'reported_at' => $request->reported_at,
+        $tickets[$index] = array_merge($tickets[$index], [
+            'title'       => $validated['title'],
+            'description' => $validated['description'],
+            'category'    => $validated['category'] ?? null,
+            'priority'    => $validated['priority'],
+            'status'      => $validated['status'],
+            'reported_at' => $validated['reported_at'] ?? null,
             'attachment'  => $attachmentPath,
         ]);
 
         Cache::put('tickets', $tickets);
 
-        // Notification senden an Ersteller
-        $ticketOwner = \App\Models\User::find($tickets[$ticketIndex]['user_id']);
+        // Notification an Ticketbesitzer senden
+        $ticketOwner = User::find($tickets[$index]['user_id']);
         if ($ticketOwner) {
-            $ticketOwner->notify(new TicketStatusChanged($tickets[$ticketIndex]));
+            $ticketOwner->notify(new TicketStatusChanged($tickets[$index]));
         }
 
         return redirect()->route('tickets.index')->with('success', 'Ticket aktualisiert!');
@@ -160,19 +159,18 @@ class TicketController extends Controller
     // Ticket löschen (nur Admin)
     public function destroy($id)
     {
-        // --- Rollen-Prüfung ---
         if (!Auth::user()->hasRole('admin')) {
             abort(403, 'Nur Admin darf löschen!');
         }
 
         $tickets = Cache::get('tickets', []);
-        $ticket = collect($tickets)->firstWhere('id', $id);
+        $ticket = collect($tickets)->firstWhere('id', (int)$id);
 
         if ($ticket && !empty($ticket['attachment'])) {
             Storage::disk('public')->delete($ticket['attachment']);
         }
 
-        $tickets = collect($tickets)->reject(fn($t) => $t['id'] == $id)->values()->all();
+        $tickets = collect($tickets)->reject(fn($t) => $t['id'] == (int)$id)->values()->all();
         Cache::put('tickets', $tickets);
 
         return redirect()->route('tickets.index')->with('success', 'Ticket gelöscht!');

@@ -2,120 +2,136 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
+use App\Models\Ticket;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
-use App\Events\TicketStatusUpdated; // Falls du Events nutzt
+use Illuminate\Support\Facades\Storage;
 
 class TicketApiController extends Controller
+
 {
     public function __construct()
     {
-        $this->middleware('auth:sanctum');
+        $this->middleware(['auth', 'verified']);
     }
 
-    /**
-     * Alle Tickets als JSON zurückgeben
-     */
+    // 1. Alle Tickets anzeigen
     public function index()
     {
-        $tickets = Cache::get('tickets', []);
-        return response()->json($tickets);
+        if (Auth::user()->hasAnyRole(['support', 'admin'])) {
+            $tickets = Ticket::latest()->get();
+        } else {
+            $tickets = Ticket::where('user_id', Auth::id())->latest()->get();
+        }
+        return view('tickets.index', compact('tickets'));
     }
 
-    /**
-     * Neues Ticket anlegen
-     */
+    // 2. Formular für neues Ticket anzeigen
+    public function create()
+    {
+        return view('tickets.create');
+    }
+
+    // 3. Ticket speichern
     public function store(Request $request)
     {
-        // Validierung
-        $data = $request->validate([
-            'title' => 'required|string|max:255',
+        $validated = $request->validate([
+            'title'       => 'required|string|max:255',
             'description' => 'required|string',
-            'category' => 'nullable|string|max:50',
-            'priority' => 'required|in:low,medium,high,critical',
+            'category'    => 'nullable|string|max:50',
+            'priority'    => 'required|in:low,medium,high,critical',
+            'reported_at' => 'nullable|date',
+            'attachment'  => 'nullable|file|max:5120', // max 5MB
         ]);
 
-        $tickets = Cache::get('tickets', []);
-        $newId = count($tickets) > 0 ? max(array_column($tickets, 'id')) + 1 : 1;
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store('attachments', 'public');
+        }
 
-        $newTicket = array_merge($data, [
-            'id' => $newId,
-            'user_id' => Auth::id(),
-            'status' => 'open',
-            'created_at' => now()->toDateTimeString(),
+        Ticket::create([
+            'title'       => $validated['title'],
+            'description' => $validated['description'],
+            'category'    => $validated['category'] ?? null,
+            'priority'    => $validated['priority'],
+            'reported_at' => $validated['reported_at'] ?? null,
+            'attachment'  => $attachmentPath,
+            'user_id'     => Auth::id(),
+            'status'      => 'open',
         ]);
 
-        $tickets[] = $newTicket;
-        Cache::put('tickets', $tickets);
-
-        return response()->json($newTicket, 201);
+        return redirect()->route('tickets.index')->with('success', 'Ticket erfolgreich erstellt!');
     }
 
-    /**
-     * Einzelnes Ticket anzeigen
-     */
-    public function show($id)
+    // 4. Einzelnes Ticket anzeigen
+    public function show(Ticket $ticket)
     {
-        $tickets = Cache::get('tickets', []);
-        $ticket = collect($tickets)->firstWhere('id', (int) $id);
-
-        if (!$ticket) {
-            return response()->json(['message' => 'Ticket nicht gefunden'], 404);
+        // Nur eigene Tickets sehen, außer Support/Admin
+        if (!Auth::user()->hasAnyRole(['support', 'admin']) && $ticket->user_id !== Auth::id()) {
+            abort(403, 'Kein Zugriff!');
         }
-
-        return response()->json($ticket);
+        return view('tickets.show', compact('ticket'));
     }
 
-    /**
-     * Ticket aktualisieren
-     */
-    public function update(Request $request, $id)
+    // 5. Ticket bearbeiten
+    public function edit(Ticket $ticket)
     {
-        $tickets = Cache::get('tickets', []);
-        $index = collect($tickets)->search(fn($t) => $t['id'] == (int)$id);
+        // Nur Support/Admin oder Besitzer darf bearbeiten
+        if (!Auth::user()->hasAnyRole(['support', 'admin']) && $ticket->user_id !== Auth::id()) {
+            abort(403, 'Keine Berechtigung!');
+        }
+        return view('tickets.edit', compact('ticket'));
+    }
 
-        if ($index === false) {
-            return response()->json(['message' => 'Ticket nicht gefunden'], 404);
+    // 6. Ticket aktualisieren
+    public function update(Request $request, Ticket $ticket)
+    {
+        if (!Auth::user()->hasAnyRole(['support', 'admin']) && $ticket->user_id !== Auth::id()) {
+            abort(403, 'Keine Berechtigung!');
         }
 
-        $data = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
-            'description' => 'sometimes|required|string',
-            'category' => 'nullable|string|max:50',
-            'priority' => 'sometimes|required|in:low,medium,high,critical',
-            'status' => 'sometimes|required|in:open,in_progress,closed',
+        $validated = $request->validate([
+            'title'       => 'required|string|max:255',
+            'description' => 'required|string',
+            'category'    => 'nullable|string|max:50',
+            'priority'    => 'required|in:low,medium,high,critical',
+            'reported_at' => 'nullable|date',
+            'status'      => 'required|in:open,in_progress,closed',
+            'attachment'  => 'nullable|file|max:5120',
         ]);
 
-        // Merge und Cache updaten
-        $tickets[$index] = array_merge($tickets[$index], $data);
-        Cache::put('tickets', $tickets);
-
-        // Event feuern, wenn Status sich ändert (optional)
-        if (isset($data['status'])) {
-            event(new TicketStatusUpdated($tickets[$index]));
+        // File-Upload behandeln
+        if ($request->hasFile('attachment')) {
+            if ($ticket->attachment) {
+                Storage::disk('public')->delete($ticket->attachment);
+            }
+            $ticket->attachment = $request->file('attachment')->store('attachments', 'public');
         }
 
-        return response()->json($tickets[$index]);
+        $ticket->update([
+            'title'       => $validated['title'],
+            'description' => $validated['description'],
+            'category'    => $validated['category'] ?? null,
+            'priority'    => $validated['priority'],
+            'reported_at' => $validated['reported_at'] ?? null,
+            'status'      => $validated['status'],
+            'attachment'  => $ticket->attachment,
+        ]);
+
+        return redirect()->route('tickets.index')->with('success', 'Ticket aktualisiert!');
     }
 
-    /**
-     * Ticket löschen
-     */
-    public function destroy($id)
+    // 7. Ticket löschen (nur Admin)
+    public function destroy(Ticket $ticket)
     {
-        $tickets = Cache::get('tickets', []);
-        $countBefore = count($tickets);
-
-        $tickets = collect($tickets)->reject(fn($t) => $t['id'] == (int)$id)->values()->all();
-
-        if (count($tickets) === $countBefore) {
-            return response()->json(['message' => 'Ticket nicht gefunden'], 404);
+        if (!Auth::user()->hasRole('admin')) {
+            abort(403, 'Nur Admin darf löschen!');
         }
+        if ($ticket->attachment) {
+            Storage::disk('public')->delete($ticket->attachment);
+        }
+        $ticket->delete();
 
-        Cache::put('tickets', $tickets);
-
-        return response()->json(null, 204);
+        return redirect()->route('tickets.index')->with('success', 'Ticket gelöscht!');
     }
 }
