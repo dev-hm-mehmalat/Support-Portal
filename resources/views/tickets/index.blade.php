@@ -20,8 +20,7 @@
             </a>
         </div>
 
-        @if($tickets->count())
-            <div class="overflow-x-auto rounded shadow bg-white dark:bg-gray-800">
+@if(count($tickets))            <div class="overflow-x-auto rounded shadow bg-white dark:bg-gray-800">
                 <table class="min-w-full table-auto text-sm">
                     <thead>
                         <tr class="bg-gray-200 dark:bg-gray-700">
@@ -92,3 +91,5 @@
         @endif
     </div>
 </x-app-layout>
+
+
